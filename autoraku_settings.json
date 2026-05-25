@@ -1,0 +1,16 @@
+{
+  "scan_interval_seconds": 5.0,
+  "dark_mode": true,
+  "stop_hotkey": "f8",
+  "map_key": "m",
+  "auto_drive_prepare_key": "c",
+  "auto_drive_toggle_key": "é",
+  "menu_exit_key": "esc",
+  "menu_right_key": "right",
+  "confirm_key": "enter",
+  "move_left_key": "a",
+  "move_down_key": "s",
+  "move_up_key": "up",
+  "move_forward_key": "w",
+  "action_key": "x"
+}
