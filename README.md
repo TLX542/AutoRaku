@@ -14,6 +14,7 @@ AutoRaku automates the **RakuRaku** gamemode in **Forza Horizon 6** by watching 
 - Start the activity in-game first.
 - Keep AutoRaku in the open while it runs.
 - Install Tesseract OCR at `C:\Program Files\Tesseract-OCR\tesseract.exe` if possible.
+- **To make the program read info more easily, go into `Settings/Visual Accessibility` and change Increased Text Size to 125% and Interface Visuals to High Contrast**
 
 ## Requirements
 

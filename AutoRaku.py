@@ -171,7 +171,7 @@ class AutoRakuGUI:
 		subtitle_row.pack(fill="x", padx=16, pady=(0, 14))
 		self.subtitle_label = ttk.Label(
 			subtitle_row,
-			text="Control automation from the Control tab and edit configurable bindings in Settings.",
+			text="An automation program to play the RakuRaku jobs while you do something else.",
 			style="Subtle.TLabel",
 		)
 		self.subtitle_label.pack(side="left")
