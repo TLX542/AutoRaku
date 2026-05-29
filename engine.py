@@ -50,6 +50,7 @@ DEFAULT_SETTINGS = {
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_SCANCODE = 0x0008
+KEYEVENTF_UNICODE = 0x0004
 MAPVK_VK_TO_VSC = 0
 
 
@@ -81,7 +82,19 @@ class AutoRakuEngine:
 		self.automation_thread = None
 		self.listener = None
 		self.controller = Controller()
-		self.user32 = ctypes.windll.user32 if sys.platform.startswith("win") else None
+		self.user32 = None
+		self.kernel32 = None
+		if sys.platform.startswith("win"):
+			self.user32 = ctypes.WinDLL("user32", use_last_error=True)
+			self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+			self.user32.SendInput.argtypes = [ctypes.c_uint, ctypes.POINTER(INPUT), ctypes.c_int]
+			self.user32.SendInput.restype = ctypes.c_uint
+			self.user32.MapVirtualKeyW.argtypes = [ctypes.c_uint, ctypes.c_uint]
+			self.user32.MapVirtualKeyW.restype = ctypes.c_uint
+			self.user32.VkKeyScanW.argtypes = [ctypes.c_uint]
+			self.user32.VkKeyScanW.restype = ctypes.c_short
+			self.user32.keybd_event.argtypes = [ctypes.c_ubyte, ctypes.c_ubyte, ctypes.c_uint, ctypes.c_ulong]
+			self.user32.keybd_event.restype = None
 		self.press_detected_count = 0
 		self.resetting = False
 
@@ -243,9 +256,40 @@ class AutoRakuEngine:
 			self._send_scancode(scan_code, key_up=False, extended=is_extended)
 			time.sleep(hold_seconds)
 			self._send_scancode(scan_code, key_up=True, extended=is_extended)
+		except Exception:
+			for modifier_vk in reversed(modifier_codes):
+				self._send_virtual_key(modifier_vk, key_up=True)
+			return self._press_key_with_keybd_event(key_name, hold_seconds)
 		finally:
 			for modifier_vk in reversed(modifier_codes):
 				self._send_virtual_key(modifier_vk, key_up=True)
+
+		return True
+
+	def _press_key_with_keybd_event(self, key_name, hold_seconds):
+		if self.user32 is None:
+			return False
+
+		try:
+			key_spec = self.resolve_sendinput_key(key_name)
+		except ValueError:
+			return False
+
+		if key_spec is None:
+			return False
+
+		vk_code, _, is_extended, modifier_codes = key_spec
+		flags = KEYEVENTF_EXTENDEDKEY if is_extended else 0
+		try:
+			for modifier_vk in modifier_codes:
+				self.user32.keybd_event(modifier_vk, 0, 0, 0)
+
+			self.user32.keybd_event(vk_code, 0, flags, 0)
+			time.sleep(hold_seconds)
+			self.user32.keybd_event(vk_code, 0, flags | KEYEVENTF_KEYUP, 0)
+		finally:
+			for modifier_vk in reversed(modifier_codes):
+				self.user32.keybd_event(modifier_vk, 0, KEYEVENTF_KEYUP, 0)
 
 		return True
 
@@ -330,10 +374,12 @@ class AutoRakuEngine:
 
 		input_event = INPUT()
 		input_event.type = 1
-		input_event.union.ki = KEYBDINPUT(0, scan_code, flags, 0, None)
-		result = self.user32.SendInput(1, ctypes.byref(input_event), ctypes.sizeof(INPUT))
+		input_event.union.ki = KEYBDINPUT(0, scan_code, flags, 0, 0)
+		input_array = (INPUT * 1)(input_event)
+		result = self.user32.SendInput(1, input_array, ctypes.sizeof(INPUT))
 		if result != 1:
-			raise OSError("SendInput failed")
+			error_code = ctypes.get_last_error()
+			raise OSError(f"SendInput failed with error {error_code}")
 
 	def check_new_shift(self, text):
 		lower_text = text.lower()
