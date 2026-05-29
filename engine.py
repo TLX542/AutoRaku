@@ -1,5 +1,7 @@
 import json
+import ctypes
 import os
+import sys
 import threading
 import time
 from datetime import datetime
@@ -45,6 +47,30 @@ DEFAULT_SETTINGS = {
 }
 
 
+KEYEVENTF_EXTENDEDKEY = 0x0001
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_SCANCODE = 0x0008
+MAPVK_VK_TO_VSC = 0
+
+
+class KEYBDINPUT(ctypes.Structure):
+	_fields_ = [
+		("wVk", ctypes.c_ushort),
+		("wScan", ctypes.c_ushort),
+		("dwFlags", ctypes.c_ulong),
+		("time", ctypes.c_ulong),
+		("dwExtraInfo", ctypes.c_void_p),
+	]
+
+
+class INPUT_UNION(ctypes.Union):
+	_fields_ = [("ki", KEYBDINPUT)]
+
+
+class INPUT(ctypes.Structure):
+	_fields_ = [("type", ctypes.c_ulong), ("union", INPUT_UNION)]
+
+
 class AutoRakuEngine:
 	def __init__(self, settings, log_callback=None, state_callback=None):
 		self.settings = settings
@@ -55,6 +81,7 @@ class AutoRakuEngine:
 		self.automation_thread = None
 		self.listener = None
 		self.controller = Controller()
+		self.user32 = ctypes.windll.user32 if sys.platform.startswith("win") else None
 		self.press_detected_count = 0
 		self.resetting = False
 
@@ -188,10 +215,125 @@ class AutoRakuEngine:
 		raise ValueError(f"Unsupported key: {key_name}")
 
 	def press_key(self, key_name, hold_seconds=0.05):
+		if self._press_key_with_sendinput(key_name, hold_seconds):
+			return
+
 		key_object = self.resolve_key(key_name)
 		self.controller.press(key_object)
 		time.sleep(hold_seconds)
 		self.controller.release(key_object)
+
+	def _press_key_with_sendinput(self, key_name, hold_seconds):
+		if self.user32 is None:
+			return False
+
+		try:
+			key_spec = self.resolve_sendinput_key(key_name)
+		except ValueError:
+			return False
+
+		if key_spec is None:
+			return False
+
+		vk_code, scan_code, is_extended, modifier_codes = key_spec
+		try:
+			for modifier_vk in modifier_codes:
+				self._send_virtual_key(modifier_vk, key_up=False)
+
+			self._send_scancode(scan_code, key_up=False, extended=is_extended)
+			time.sleep(hold_seconds)
+			self._send_scancode(scan_code, key_up=True, extended=is_extended)
+		finally:
+			for modifier_vk in reversed(modifier_codes):
+				self._send_virtual_key(modifier_vk, key_up=True)
+
+		return True
+
+	def resolve_sendinput_key(self, key_name):
+		key_name = key_name.strip().lower()
+		if not key_name:
+			raise ValueError("Empty key name")
+
+		special_keys = {
+			"enter": 0x0D,
+			"esc": 0x1B,
+			"escape": 0x1B,
+			"space": 0x20,
+			"tab": 0x09,
+			"backspace": 0x08,
+			"delete": 0x2E,
+			"up": 0x26,
+			"down": 0x28,
+			"left": 0x25,
+			"right": 0x27,
+			"shift": 0x10,
+			"ctrl": 0x11,
+			"alt": 0x12,
+			"cmd": 0x5B,
+			"home": 0x24,
+			"end": 0x23,
+			"page_up": 0x21,
+			"page_down": 0x22,
+		}
+
+		if key_name in special_keys:
+			vk_code = special_keys[key_name]
+			scan_code = self.user32.MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC)
+			if not scan_code:
+				return None
+			is_extended = key_name in {"up", "down", "left", "right", "delete", "home", "end", "page_up", "page_down"}
+			return vk_code, scan_code, is_extended, []
+
+		if key_name.startswith("f") and key_name[1:].isdigit():
+			function_key = getattr(Key, key_name, None)
+			if function_key is not None:
+				vk_code = 0x70 + int(key_name[1:]) - 1
+				scan_code = self.user32.MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC)
+				if scan_code:
+					return vk_code, scan_code, False, []
+
+		if len(key_name) == 1:
+			vk_scan = self.user32.VkKeyScanW(ord(key_name))
+			if vk_scan == -1:
+				return None
+			vk_code = vk_scan & 0xFF
+			modifier_state = (vk_scan >> 8) & 0xFF
+			scan_code = self.user32.MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC)
+			if not scan_code:
+				return None
+			modifier_codes = []
+			if modifier_state & 0x01:
+				modifier_codes.append(0x10)
+			if modifier_state & 0x02:
+				modifier_codes.append(0x11)
+			if modifier_state & 0x04:
+				modifier_codes.append(0x12)
+			return vk_code, scan_code, False, modifier_codes
+
+		return None
+
+	def _send_virtual_key(self, vk_code, key_up=False):
+		scan_code = self.user32.MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC)
+		if not scan_code:
+			raise ValueError(f"Unsupported key code: {vk_code}")
+		self._send_input(scan_code, key_up=key_up, extended=False)
+
+	def _send_scancode(self, scan_code, key_up=False, extended=False):
+		self._send_input(scan_code, key_up=key_up, extended=extended)
+
+	def _send_input(self, scan_code, key_up=False, extended=False):
+		flags = KEYEVENTF_SCANCODE
+		if key_up:
+			flags |= KEYEVENTF_KEYUP
+		if extended:
+			flags |= KEYEVENTF_EXTENDEDKEY
+
+		input_event = INPUT()
+		input_event.type = 1
+		input_event.union.ki = KEYBDINPUT(0, scan_code, flags, 0, None)
+		result = self.user32.SendInput(1, ctypes.byref(input_event), ctypes.sizeof(INPUT))
+		if result != 1:
+			raise OSError("SendInput failed")
 
 	def check_new_shift(self, text):
 		lower_text = text.lower()
