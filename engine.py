@@ -337,11 +337,14 @@ class AutoRakuEngine:
 					return vk_code, scan_code, False, []
 
 		if len(key_name) == 1:
-			vk_scan = self.user32.VkKeyScanW(ord(key_name))
-			if vk_scan == -1:
+			if key_name.isascii() and key_name.isalpha():
+				vk_code = ord(key_name.upper())
+				modifier_state = 0
+			elif key_name.isascii() and key_name.isdigit():
+				vk_code = ord(key_name)
+				modifier_state = 0
+			else:
 				return None
-			vk_code = vk_scan & 0xFF
-			modifier_state = (vk_scan >> 8) & 0xFF
 			scan_code = self.user32.MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC)
 			if not scan_code:
 				return None

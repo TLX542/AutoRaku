@@ -440,17 +440,20 @@ class AutoRakuGUI:
 		if event.keysym in keysym_map:
 			return keysym_map[event.keysym]
 
-		translated_char = self.translate_windows_key_event(event)
-		if translated_char is None:
-			translated_char = event.char
-		if translated_char and len(translated_char) == 1 and translated_char.isprintable():
-			return translated_char.lower()
-
 		keysym = event.keysym.lower()
 		if len(keysym) == 1:
-			return keysym
+			if keysym.isascii() and keysym.isprintable():
+				return keysym
 		if keysym.startswith("f") and keysym[1:].isdigit():
 			return keysym
+
+		if sys.platform.startswith("win"):
+			keycode = getattr(event, "keycode", None)
+			if keycode is not None:
+				if 65 <= int(keycode) <= 90:
+					return chr(int(keycode)).lower()
+				if 48 <= int(keycode) <= 57:
+					return chr(int(keycode))
 		return None
 
 	def translate_windows_key_event(self, event):
