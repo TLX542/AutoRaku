@@ -32,7 +32,7 @@ DEFAULT_SETTINGS = {
 	"dark_mode": False,
 	"stop_hotkey": "f8",
 	"map_key": "m",
-	"auto_drive_prepare_key": "c",
+	"ask_anna_key": "c",
 	"auto_drive_toggle_key": "2",
 	"menu_exit_key": "esc",
 	"menu_right_key": "right",
@@ -41,7 +41,7 @@ DEFAULT_SETTINGS = {
 	"move_down_key": "s",
 	"move_up_key": "up",
 	"move_forward_key": "w",
-	"action_key": "x",
+	"map_action_key": "x",
 }
 
 
@@ -203,14 +203,14 @@ class AutoRakuEngine:
 			or ("yes" in lower_text and "no" in lower_text)
 			or "select" in lower_text
 		):
-			self.add_log("Shift prompt detected. Pressing confirm.")
+			self.add_log("Confirm prompt detected. Pressing confirm.")
 			self.press_key(self.settings["confirm_key"])
 
 	def check_auto_drive(self, text):
 		lower_text = text.lower()
 		if "auto" not in lower_text and "drive" not in lower_text and "anna" in lower_text:
 			self.add_log("Auto-drive not detected. Triggering auto-drive keys.")
-			self.press_key(self.settings["auto_drive_prepare_key"])
+			self.press_key(self.settings["ask_anna_key"])
 			self.sleep_interruptible(2)
 			self.press_key(self.settings["auto_drive_toggle_key"])
 
@@ -264,7 +264,7 @@ class AutoRakuEngine:
 			self.sleep_interruptible(2)
 			self.press_key(self.settings["move_forward_key"])
 			self.sleep_interruptible(5.41)
-			self.press_key(self.settings["action_key"])
+			self.press_key(self.settings["map_action_key"])
 			self.sleep_interruptible(2)
 			self.press_key(self.settings["confirm_key"])
 			self.add_log("Reset sequence finished.")

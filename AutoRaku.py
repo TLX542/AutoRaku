@@ -274,7 +274,7 @@ class AutoRakuGUI:
 		for label, key_name in [
 			("Stop hotkey", "stop_hotkey"),
 			("Map key", "map_key"),
-			("Auto-drive prepare key", "auto_drive_prepare_key"),
+			("Ask ANNA Key", "ask_anna_key"),
 			("Auto-drive toggle key", "auto_drive_toggle_key"),
 			("Exit menu key", "menu_exit_key"),
 			("Menu right key", "menu_right_key"),
@@ -283,7 +283,7 @@ class AutoRakuGUI:
 			("Move down key", "move_down_key"),
 			("Move up key", "move_up_key"),
 			("Move forward key", "move_forward_key"),
-			("Action key", "action_key"),
+			("Action key", "map_action_key"),
 		]:
 			field = KeyCaptureField(keys_card, self, label, key_name)
 			field.pack(fill="x", padx=16, pady=4)
