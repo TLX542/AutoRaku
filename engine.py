@@ -53,6 +53,45 @@ KEYEVENTF_SCANCODE = 0x0008
 KEYEVENTF_UNICODE = 0x0004
 MAPVK_VK_TO_VSC = 0
 
+ASCII_SCAN_CODES = {
+	"a": 0x1E,
+	"b": 0x30,
+	"c": 0x2E,
+	"d": 0x20,
+	"e": 0x12,
+	"f": 0x21,
+	"g": 0x22,
+	"h": 0x23,
+	"i": 0x17,
+	"j": 0x24,
+	"k": 0x25,
+	"l": 0x26,
+	"m": 0x32,
+	"n": 0x31,
+	"o": 0x18,
+	"p": 0x19,
+	"q": 0x10,
+	"r": 0x13,
+	"s": 0x1F,
+	"t": 0x14,
+	"u": 0x16,
+	"v": 0x2F,
+	"w": 0x11,
+	"x": 0x2D,
+	"y": 0x15,
+	"z": 0x2C,
+	"1": 0x02,
+	"2": 0x03,
+	"3": 0x04,
+	"4": 0x05,
+	"5": 0x06,
+	"6": 0x07,
+	"7": 0x08,
+	"8": 0x09,
+	"9": 0x0A,
+	"0": 0x0B,
+}
+
 
 class KEYBDINPUT(ctypes.Structure):
 	_fields_ = [
@@ -339,23 +378,18 @@ class AutoRakuEngine:
 		if len(key_name) == 1:
 			if key_name.isascii() and key_name.isalpha():
 				vk_code = ord(key_name.upper())
-				modifier_state = 0
+				scan_code = ASCII_SCAN_CODES.get(key_name)
+				if scan_code is None:
+					return None
+				return vk_code, scan_code, False, []
 			elif key_name.isascii() and key_name.isdigit():
 				vk_code = ord(key_name)
-				modifier_state = 0
+				scan_code = ASCII_SCAN_CODES.get(key_name)
+				if scan_code is None:
+					return None
+				return vk_code, scan_code, False, []
 			else:
 				return None
-			scan_code = self.user32.MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC)
-			if not scan_code:
-				return None
-			modifier_codes = []
-			if modifier_state & 0x01:
-				modifier_codes.append(0x10)
-			if modifier_state & 0x02:
-				modifier_codes.append(0x11)
-			if modifier_state & 0x04:
-				modifier_codes.append(0x12)
-			return vk_code, scan_code, False, modifier_codes
 
 		return None
 
